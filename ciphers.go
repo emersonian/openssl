@@ -1,4 +1,4 @@
-// Copyright (C) 2014 Space Monkey, Inc.
+// Copyright (C) 2017. See AUTHORS.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,43 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build cgo
-
 package openssl
 
-// #include <openssl/evp.h>
-//
-// int EVP_CIPHER_block_size_not_a_macro(EVP_CIPHER *c) {
-//     return EVP_CIPHER_block_size(c);
-// }
-//
-// int EVP_CIPHER_key_length_not_a_macro(EVP_CIPHER *c) {
-//     return EVP_CIPHER_key_length(c);
-// }
-//
-// int EVP_CIPHER_iv_length_not_a_macro(EVP_CIPHER *c) {
-//     return EVP_CIPHER_iv_length(c);
-// }
-//
-// int EVP_CIPHER_nid_not_a_macro(EVP_CIPHER *c) {
-//     return EVP_CIPHER_nid(c);
-// }
-//
-// int EVP_CIPHER_CTX_block_size_not_a_macro(EVP_CIPHER_CTX *ctx) {
-//     return EVP_CIPHER_CTX_block_size(ctx);
-// }
-//
-// int EVP_CIPHER_CTX_key_length_not_a_macro(EVP_CIPHER_CTX *ctx) {
-//     return EVP_CIPHER_CTX_key_length(ctx);
-// }
-//
-// int EVP_CIPHER_CTX_iv_length_not_a_macro(EVP_CIPHER_CTX *ctx) {
-//     return EVP_CIPHER_CTX_iv_length(ctx);
-// }
-//
-// const EVP_CIPHER *EVP_CIPHER_CTX_cipher_not_a_macro(EVP_CIPHER_CTX *ctx) {
-//     return EVP_CIPHER_CTX_cipher(ctx);
-// }
+// #include "shim.h"
 import "C"
 
 import (
@@ -78,8 +44,7 @@ type Cipher struct {
 func (c *Cipher) Nid() NID {
 	cgolock.Lock()
 	defer cgolock.Unlock()
-
-	return NID(C.EVP_CIPHER_nid_not_a_macro(c.ptr))
+	return NID(C.X_EVP_CIPHER_nid(c.ptr))
 }
 
 func (c *Cipher) ShortName() (string, error) {
@@ -89,22 +54,19 @@ func (c *Cipher) ShortName() (string, error) {
 func (c *Cipher) BlockSize() int {
 	cgolock.Lock()
 	defer cgolock.Unlock()
-
-	return int(C.EVP_CIPHER_block_size_not_a_macro(c.ptr))
+	return int(C.X_EVP_CIPHER_block_size(c.ptr))
 }
 
 func (c *Cipher) KeySize() int {
 	cgolock.Lock()
 	defer cgolock.Unlock()
-
-	return int(C.EVP_CIPHER_key_length_not_a_macro(c.ptr))
+	return int(C.X_EVP_CIPHER_key_length(c.ptr))
 }
 
 func (c *Cipher) IVSize() int {
 	cgolock.Lock()
 	defer cgolock.Unlock()
-
-	return int(C.EVP_CIPHER_iv_length_not_a_macro(c.ptr))
+	return int(C.X_EVP_CIPHER_iv_length(c.ptr))
 }
 
 func Nid2ShortName(nid NID) (string, error) {
@@ -181,7 +143,7 @@ func (ctx *cipherCtx) applyKeyAndIV(key, iv []byte) error {
 
 	if kptr != nil || iptr != nil {
 		var res C.int
-		if ctx.ctx.encrypt != 0 {
+		if C.X_EVP_CIPHER_CTX_encrypting(ctx.ctx) != 0 {
 			res = C.EVP_EncryptInit_ex(ctx.ctx, nil, nil, kptr, iptr)
 		} else {
 			res = C.EVP_DecryptInit_ex(ctx.ctx, nil, nil, kptr, iptr)
@@ -196,29 +158,35 @@ func (ctx *cipherCtx) applyKeyAndIV(key, iv []byte) error {
 func (ctx *cipherCtx) Cipher() *Cipher {
 	cgolock.Lock()
 	defer cgolock.Unlock()
-
-	return &Cipher{ptr: C.EVP_CIPHER_CTX_cipher_not_a_macro(ctx.ctx)}
+	return &Cipher{ptr: C.X_EVP_CIPHER_CTX_cipher(ctx.ctx)}
 }
 
 func (ctx *cipherCtx) BlockSize() int {
 	cgolock.Lock()
 	defer cgolock.Unlock()
-
-	return int(C.EVP_CIPHER_CTX_block_size_not_a_macro(ctx.ctx))
+	return int(C.X_EVP_CIPHER_CTX_block_size(ctx.ctx))
 }
 
 func (ctx *cipherCtx) KeySize() int {
 	cgolock.Lock()
 	defer cgolock.Unlock()
-
-	return int(C.EVP_CIPHER_CTX_key_length_not_a_macro(ctx.ctx))
+	return int(C.X_EVP_CIPHER_CTX_key_length(ctx.ctx))
 }
 
 func (ctx *cipherCtx) IVSize() int {
 	cgolock.Lock()
 	defer cgolock.Unlock()
+	return int(C.X_EVP_CIPHER_CTX_iv_length(ctx.ctx))
+}
 
-	return int(C.EVP_CIPHER_CTX_iv_length_not_a_macro(ctx.ctx))
+func (ctx *cipherCtx) SetPadding(pad bool) {
+	cgolock.Lock()
+	defer cgolock.Unlock()
+	if pad {
+		C.X_EVP_CIPHER_CTX_set_padding(ctx.ctx, 1)
+	} else {
+		C.X_EVP_CIPHER_CTX_set_padding(ctx.ctx, 0)
+	}
 }
 
 func (ctx *cipherCtx) setCtrl(code, arg int) error {
@@ -375,6 +343,9 @@ func (ctx *encryptionCipherCtx) EncryptUpdate(input []byte) ([]byte, error) {
 	cgolock.Lock()
 	defer cgolock.Unlock()
 
+	if len(input) == 0 {
+		return nil, nil
+	}
 	outbuf := make([]byte, len(input)+ctx.BlockSize())
 	outlen := C.int(len(outbuf))
 	res := C.EVP_EncryptUpdate(ctx.ctx, (*C.uchar)(&outbuf[0]), &outlen,
@@ -389,6 +360,9 @@ func (ctx *decryptionCipherCtx) DecryptUpdate(input []byte) ([]byte, error) {
 	cgolock.Lock()
 	defer cgolock.Unlock()
 
+	if len(input) == 0 {
+		return nil, nil
+	}
 	outbuf := make([]byte, len(input)+ctx.BlockSize())
 	outlen := C.int(len(outbuf))
 	res := C.EVP_DecryptUpdate(ctx.ctx, (*C.uchar)(&outbuf[0]), &outlen,

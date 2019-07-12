@@ -1,4 +1,4 @@
-// Copyright (C) 2014 Space Monkey, Inc.
+// Copyright (C) 2017. See AUTHORS.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build cgo
-
 package openssl
 
 /*
@@ -26,7 +24,7 @@ package openssl
 #define X509_CHECK_FLAG_NO_WILDCARDS	0x2
 
 extern int X509_check_host(X509 *x, const unsigned char *chk, size_t chklen,
-    unsigned int flags);
+    unsigned int flags, char **peername);
 extern int X509_check_email(X509 *x, const unsigned char *chk, size_t chklen,
     unsigned int flags);
 extern int X509_check_ip(X509 *x, const unsigned char *chk, size_t chklen,
@@ -65,8 +63,9 @@ func (c *Certificate) CheckHost(host string, flags CheckFlags) error {
 
 	chost := unsafe.Pointer(C.CString(host))
 	defer C.free(chost)
+
 	rv := C.X509_check_host(c.x, (*C.uchar)(chost), C.size_t(len(host)),
-		C.uint(flags))
+		C.uint(flags), nil)
 	if rv > 0 {
 		return nil
 	}
@@ -106,6 +105,11 @@ func (c *Certificate) CheckEmail(email string, flags CheckFlags) error {
 func (c *Certificate) CheckIP(ip net.IP, flags CheckFlags) error {
 	cgolock.Lock()
 	defer cgolock.Unlock()
+	// X509_check_ip will fail to validate the 16-byte representation of an IPv4
+	// address, so convert to the 4-byte representation.
+	if ip4 := ip.To4(); ip4 != nil {
+		ip = ip4
+	}
 
 	cip := unsafe.Pointer(&ip[0])
 	rv := C.X509_check_ip(c.x, (*C.uchar)(cip), C.size_t(len(ip)),

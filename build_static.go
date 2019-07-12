@@ -1,4 +1,4 @@
-// Copyright (C) 2014 Space Monkey, Inc.
+// Copyright (C) 2017. See AUTHORS.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,14 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <openssl/ssl.h>
-#include "_cgo_export.h"
-#include <stdio.h>
+// +build openssl_static
 
-int verify_cb(int ok, X509_STORE_CTX* store) {
-	SSL* ssl = (SSL *)X509_STORE_CTX_get_app_data(store);
-	SSL_CTX* ssl_ctx = ssl_ctx = SSL_get_SSL_CTX(ssl);
-	void* p = SSL_CTX_get_ex_data(ssl_ctx, get_ssl_ctx_idx());
-	// get the pointer to the go Ctx object and pass it back into the thunk
-	return verify_cb_thunk(p, ok, store);
-}
+package openssl
+
+// #cgo linux windows pkg-config: --static libssl libcrypto
+// #cgo linux CFLAGS: -Wno-deprecated-declarations
+// #cgo darwin CFLAGS: -I/usr/local/opt/openssl@1.1/include -I/usr/local/opt/openssl/include -Wno-deprecated-declarations
+// #cgo darwin LDFLAGS: -L/usr/local/opt/openssl@1.1/lib -L/usr/local/opt/openssl/lib -lssl -lcrypto
+// #cgo windows CFLAGS: -DWIN32_LEAN_AND_MEAN
+import "C"

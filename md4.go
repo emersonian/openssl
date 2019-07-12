@@ -21,78 +21,63 @@ import (
 	"errors"
 	"runtime"
 	"unsafe"
-
-	"github.com/tvdw/cgolock"
 )
 
-type SHA256Hash struct {
+type MD4Hash struct {
 	ctx    *C.EVP_MD_CTX
 	engine *Engine
 }
 
-func NewSHA256Hash() (*SHA256Hash, error) { return NewSHA256HashWithEngine(nil) }
+func NewMD4Hash() (*MD4Hash, error) { return NewMD4HashWithEngine(nil) }
 
-func NewSHA256HashWithEngine(e *Engine) (*SHA256Hash, error) {
-	hash := &SHA256Hash{engine: e}
-	cgolock.Lock()
+func NewMD4HashWithEngine(e *Engine) (*MD4Hash, error) {
+	hash := &MD4Hash{engine: e}
 	hash.ctx = C.X_EVP_MD_CTX_new()
 	if hash.ctx == nil {
-		return nil, errors.New("openssl: sha256: unable to allocate ctx")
+		return nil, errors.New("openssl: md4: unable to allocate ctx")
 	}
-	cgolock.Unlock()
-	runtime.SetFinalizer(hash, func(hash *SHA256Hash) { hash.Close() })
+	runtime.SetFinalizer(hash, func(hash *MD4Hash) { hash.Close() })
 	if err := hash.Reset(); err != nil {
 		return nil, err
 	}
 	return hash, nil
 }
 
-func (s *SHA256Hash) Close() {
+func (s *MD4Hash) Close() {
 	if s.ctx != nil {
-		cgolock.Lock()
 		C.X_EVP_MD_CTX_free(s.ctx)
 		s.ctx = nil
-		cgolock.Unlock()
 	}
 }
 
-func (s *SHA256Hash) Reset() error {
-	cgolock.Lock()
-	defer cgolock.Unlock()
-
-	if 1 != C.X_EVP_DigestInit_ex(s.ctx, C.X_EVP_sha256(), engineRef(s.engine)) {
-		return errors.New("openssl: sha256: cannot init digest ctx")
+func (s *MD4Hash) Reset() error {
+	if 1 != C.X_EVP_DigestInit_ex(s.ctx, C.X_EVP_md4(), engineRef(s.engine)) {
+		return errors.New("openssl: md4: cannot init digest ctx")
 	}
 	return nil
 }
 
-func (s *SHA256Hash) Write(p []byte) (n int, err error) {
-	cgolock.Lock()
-	defer cgolock.Unlock()
-
+func (s *MD4Hash) Write(p []byte) (n int, err error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
 	if 1 != C.X_EVP_DigestUpdate(s.ctx, unsafe.Pointer(&p[0]),
 		C.size_t(len(p))) {
-		return 0, errors.New("openssl: sha256: cannot update digest")
+		return 0, errors.New("openssl: md4: cannot update digest")
 	}
 	return len(p), nil
 }
 
-func (s *SHA256Hash) Sum() (result [32]byte, err error) {
-	cgolock.Lock()
-	defer cgolock.Unlock()
-
+func (s *MD4Hash) Sum() (result [16]byte, err error) {
 	if 1 != C.X_EVP_DigestFinal_ex(s.ctx,
 		(*C.uchar)(unsafe.Pointer(&result[0])), nil) {
-		return result, errors.New("openssl: sha256: cannot finalize ctx")
+		return result, errors.New("openssl: md4: cannot finalize ctx")
 	}
 	return result, s.Reset()
 }
 
-func SHA256(data []byte) (result [32]byte, err error) {
-	hash, err := NewSHA256Hash()
+func MD4(data []byte) (result [16]byte, err error) {
+	hash, err := NewMD4Hash()
 	if err != nil {
 		return result, err
 	}

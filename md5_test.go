@@ -15,21 +15,21 @@
 package openssl
 
 import (
+	"crypto/md5"
 	"crypto/rand"
-	"crypto/sha1"
 	"io"
 	"testing"
 )
 
-func TestSHA1(t *testing.T) {
+func TestMD5(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		buf := make([]byte, 10*1024-i)
 		if _, err := io.ReadFull(rand.Reader, buf); err != nil {
 			t.Fatal(err)
 		}
 
-		expected := sha1.Sum(buf)
-		got, err := SHA1(buf)
+		expected := md5.Sum(buf)
+		got, err := MD5(buf)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -40,12 +40,12 @@ func TestSHA1(t *testing.T) {
 	}
 }
 
-func TestSHA1Writer(t *testing.T) {
-	ohash, err := NewSHA1Hash()
+func TestMD5Writer(t *testing.T) {
+	ohash, err := NewMD5Hash()
 	if err != nil {
 		t.Fatal(err)
 	}
-	hash := sha1.New()
+	hash := md5.New()
 
 	for i := 0; i < 100; i++ {
 		if err := ohash.Reset(); err != nil {
@@ -64,7 +64,7 @@ func TestSHA1Writer(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		var got, exp [20]byte
+		var got, exp [16]byte
 
 		hash.Sum(exp[:0])
 		got, err := ohash.Sum()
@@ -78,9 +78,9 @@ func TestSHA1Writer(t *testing.T) {
 	}
 }
 
-type shafunc func([]byte)
+type md5func func([]byte)
 
-func benchmarkSHA1(b *testing.B, length int64, fn shafunc) {
+func benchmarkMD5(b *testing.B, length int64, fn md5func) {
 	buf := make([]byte, length)
 	if _, err := io.ReadFull(rand.Reader, buf); err != nil {
 		b.Fatal(err)
@@ -92,18 +92,18 @@ func benchmarkSHA1(b *testing.B, length int64, fn shafunc) {
 	}
 }
 
-func BenchmarkSHA1Large_openssl(b *testing.B) {
-	benchmarkSHA1(b, 1024*1024, func(buf []byte) { SHA1(buf) })
+func BenchmarkMD5Large_openssl(b *testing.B) {
+	benchmarkMD5(b, 1024*1024, func(buf []byte) { MD5(buf) })
 }
 
-func BenchmarkSHA1Large_stdlib(b *testing.B) {
-	benchmarkSHA1(b, 1024*1024, func(buf []byte) { sha1.Sum(buf) })
+func BenchmarkMD5Large_stdlib(b *testing.B) {
+	benchmarkMD5(b, 1024*1024, func(buf []byte) { md5.Sum(buf) })
 }
 
-func BenchmarkSHA1Small_openssl(b *testing.B) {
-	benchmarkSHA1(b, 1, func(buf []byte) { SHA1(buf) })
+func BenchmarkMD5Small_openssl(b *testing.B) {
+	benchmarkMD5(b, 1, func(buf []byte) { MD5(buf) })
 }
 
-func BenchmarkSHA1Small_stdlib(b *testing.B) {
-	benchmarkSHA1(b, 1, func(buf []byte) { sha1.Sum(buf) })
+func BenchmarkMD5Small_stdlib(b *testing.B) {
+	benchmarkMD5(b, 1, func(buf []byte) { md5.Sum(buf) })
 }
